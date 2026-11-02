@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Passé composé – Übungen</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">Passé composé – Übungen<small>Auf Grundlage des Französischbuchs</small></div>
+    <button id="soundToggle" class="icon-btn" type="button" aria-label="Töne ein- oder ausschalten">🔊 Töne an</button>
+  </div>
+</div>
+
+<main>
+  <section id="home" class="screen active">
+    <div class="hero">
+      <h1>Passé composé</h1>
+      <p>Wähle eine Übungsart. Bearbeite die Aufgaben in deinem Tempo, erhalte sofort eine Rückmeldung und wiederhole am Ende nur deine Fehler.</p>
+    </div>
+    <div class="exercise-grid">
+      <button class="exercise-card" data-open="ex1">
+        <div class="num">1</div>
+        <h3>Avoir & être</h3>
+        <p>Konjugiere beide Hilfsverben im Präsens.</p>
+        <span class="tag">Konjugation</span>
+      </button>
+      <button class="exercise-card" data-open="ex2">
+        <div class="num">2</div>
+        <h3>Participe passé</h3>
+        <p>Schreibe das participe passé der Verben aus dem Buch.</p>
+        <span class="tag">eine Aufgabe nach der anderen</span>
+      </button>
+      <button class="exercise-card" data-open="ex3">
+        <div class="num">3</div>
+        <h3>Ein Verb vollständig konjugieren</h3>
+        <p>Wähle ein Verb und konjugiere es vollständig im passé composé.</p>
+        <span class="tag">Konjugation</span>
+      </button>
+      <button class="exercise-card" data-open="ex4">
+        <div class="num">4</div>
+        <h3>Lückentext – passé composé</h3>
+        <p>Setze die richtige Form im passé composé in die Lücke ein.</p>
+        <span class="tag">eine Aufgabe nach der anderen</span>
+      </button>
+      <button class="exercise-card" data-open="ex5">
+        <div class="num">5</div>
+        <h3>Être oder avoir?</h3>
+        <p>Ziehe alle Verben zum richtigen Hilfsverb.</p>
+        <span class="tag">eine Aufgabe nach der anderen</span>
+      </button>
+      <button class="exercise-card" data-open="ex6">
+        <div class="num">6</div>
+        <h3>Präsens → passé composé</h3>
+        <p>Setze ganze Sätze vom Präsens ins passé composé.</p>
+        <span class="tag">eine Aufgabe nach der anderen</span>
+      </button>
+    </div>
+  </section>
+
+  <section id="ex1" class="screen">
+    <div class="panel">
+      <div class="exercise-head">
+        <div><h2>1. Avoir und être konjugieren</h2><p>Trage alle Formen ein und kontrolliere danach deine Antworten.</p></div>
+        <button class="ghost-btn home-btn">← Start</button>
+      </div>
+      <div class="conj-grid" id="auxGrid"></div>
+      <div id="auxAccents"></div>
+      <div class="actions">
+        <button class="primary-btn" id="checkAux">Kontrollieren</button>
+        <button class="soft-btn" id="resetAux">Noch einmal</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="ex2" class="screen">
+    <div class="panel">
+      <div class="exercise-head">
+        <div><h2>2. Participe passé</h2><p>Schreibe nur das participe passé.</p></div>
+        <button class="ghost-btn home-btn">← Start</button>
+      </div>
+      <div class="progress-wrap"><div class="progress-bar" id="ex2Progress"></div></div>
+      <div id="ex2Body"></div>
+    </div>
+  </section>
+
+  <section id="ex3" class="screen">
+    <div class="panel">
+      <div class="exercise-head">
+        <div><h2>3. Ein Verb vollständig konjugieren</h2><p>Wähle ein Verb aus dem Buch und bilde alle Formen im passé composé.</p></div>
+        <button class="ghost-btn home-btn">← Start</button>
+      </div>
+      <div class="verb-selector">
+        <div><div class="mini">Verb</div><select id="verbSelect"></select></div>
+        <button class="soft-btn" id="prevVerb">← Zurück</button>
+        <button class="soft-btn" id="nextVerb">Weiter →</button>
+      </div>
+      <div id="verbConjGrid" class="conj-grid"></div>
+      <div id="verbAccents"></div>
+      <div class="actions">
+        <button class="primary-btn" id="checkVerb">Verb kontrollieren</button>
+        <button class="soft-btn" id="resetVerb">Leeren</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="ex4" class="screen">
+    <div class="panel">
+      <div class="exercise-head">
+        <div><h2>4. Lückentext – passé composé</h2><p>Setze die richtige Verbform im passé composé in die Lücke ein.</p></div>
+        <button class="ghost-btn home-btn">← Start</button>
+      </div>
+      <div class="progress-wrap"><div class="progress-bar" id="ex4Progress"></div></div>
+      <div id="ex4Body"></div>
+    </div>
+  </section>
+
+  <section id="ex5" class="screen">
+    <div class="panel">
+      <div class="exercise-head">
+        <div>
+          <h2>5. Être oder avoir?</h2>
+          <p>Ziehe jedes Verb links in das richtige Feld rechts. Kontrolliere erst, wenn alle Verben zugeordnet sind.</p>
+        </div>
+        <button class="ghost-btn home-btn">← Start</button>
+      </div>
+
+      <div class="all-match-layout">
+        <div>
+          <div class="mini">Verben</div>
+          <div id="allVerbBank" class="all-verb-bank"></div>
+        </div>
+        <div class="all-drop-column">
+          <div class="all-dropzone" id="allZoneAvoir" data-aux="avoir">
+            <h3>AVOIR</h3>
+            <div class="drop-content" id="allPlacedAvoir"></div>
+          </div>
+          <div class="all-dropzone" id="allZoneEtre" data-aux="être">
+            <h3>ÊTRE</h3>
+            <div class="drop-content" id="allPlacedEtre"></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="touch-hint">Tipp: Am Computer kannst du ziehen. Auf einem Touch-Gerät kannst du zuerst ein Verb und danach das gewünschte Feld antippen.</p>
+      <div id="allMatchFeedback" class="feedback"></div>
+      <div class="actions">
+        <button class="primary-btn" id="checkAllMatch">Alle kontrollieren</button>
+        <button class="soft-btn" id="resetAllMatch">Zurücksetzen</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="ex6" class="screen">
+    <div class="panel">
+      <div class="exercise-head">
+        <div><h2>6. Präsens → passé composé</h2><p>Schreibe den ganzen Satz im passé composé.</p></div>
+        <button class="ghost-btn home-btn">← Start</button>
+      </div>
+      <div class="progress-wrap"><div class="progress-bar" id="ex6Progress"></div></div>
+      <div id="ex6Body"></div>
+    </div>
+  </section>
+
+  <div class="source-note">Die kurzen Sätze und Verbformen orientieren sich am hochgeladenen Französischbuch.</div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
