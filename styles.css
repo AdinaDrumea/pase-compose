@@ -180,3 +180,29 @@ input[type=text]:focus,select:focus{outline:3px solid rgba(41,70,97,.13);border-
   .all-match-layout{grid-template-columns:1fr}
   .all-verb-bank{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* Saved test results */
+.last-score{
+  margin-top:12px;padding-top:10px;border-top:1px solid var(--line);
+  color:var(--navy);font-size:.82rem;font-weight:850
+}
+.last-score-inline{
+  display:inline-block;margin-top:8px;padding:6px 9px;border-radius:999px;
+  background:var(--blue);color:var(--navy);font-size:.8rem;font-weight:850
+}
+.current-score{
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:center
+}
+
+
+/* More visible target verb in sentence exercises */
+.target-verb{
+  display:inline-flex;align-items:center;gap:12px;margin:2px 0 16px;padding:11px 15px;
+  border-radius:15px;background:var(--rose);border:1px solid #e8c9bf;color:var(--navy)
+}
+.target-verb .target-label{
+  font-size:.76rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em;color:#80564a
+}
+.target-verb strong{font-size:1.42rem;line-height:1;font-weight:950;color:var(--navy)}
+@media(max-width:600px){.target-verb{display:flex;width:100%;justify-content:space-between}.target-verb strong{font-size:1.32rem}}

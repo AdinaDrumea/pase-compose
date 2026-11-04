@@ -1,12 +1,75 @@
 const VERBS = {"jouer": {"pp": "joué", "aux": "avoir"}, "décider": {"pp": "décidé", "aux": "avoir"}, "passer": {"pp": "passé", "aux": "avoir"}, "fabriquer": {"pp": "fabriqué", "aux": "avoir"}, "regarder": {"pp": "regardé", "aux": "avoir"}, "payer": {"pp": "payé", "aux": "avoir"}, "entrer": {"pp": "entré", "aux": "être"}, "courir": {"pp": "couru", "aux": "avoir"}, "prendre": {"pp": "pris", "aux": "avoir"}, "faire": {"pp": "fait", "aux": "avoir"}, "dire": {"pp": "dit", "aux": "avoir"}, "voir": {"pp": "vu", "aux": "avoir"}, "avoir": {"pp": "eu", "aux": "avoir"}, "mettre": {"pp": "mis", "aux": "avoir"}, "être": {"pp": "été", "aux": "avoir"}, "ouvrir": {"pp": "ouvert", "aux": "avoir"}, "remplir": {"pp": "rempli", "aux": "avoir"}, "aller": {"pp": "allé", "aux": "être"}, "rentrer": {"pp": "rentré", "aux": "être"}, "acheter": {"pp": "acheté", "aux": "avoir"}};
-const ACCENTS = ["é","è","ê","ë","à","â","ç","î","ï","ô","ù","û","ü","œ"];
+const ACCENTS = ["'","é","è","ê","ë","à","â","ç","î","ï","ô","ù","û","ü","œ"];
 let soundOn = true;
 let audioCtx = null;
 let activeInput = null;
 
+const SCORE_STORAGE_KEY = "passe-compose-last-results-v2";
+const OLD_SCORE_STORAGE_KEY = "passe-compose-last-results-v1";
+
+function loadScores(){
+  try{
+    const current=localStorage.getItem(SCORE_STORAGE_KEY);
+    if(current) return JSON.parse(current);
+    const old=JSON.parse(localStorage.getItem(OLD_SCORE_STORAGE_KEY)||"{}");
+    const migrated={};
+    ["ex1","ex2","ex3"].forEach(id=>{if(old[id]) migrated[id]=old[id];});
+    if(Object.keys(migrated).length) localStorage.setItem(SCORE_STORAGE_KEY,JSON.stringify(migrated));
+    return migrated;
+  }catch(e){return {};}
+}
+function saveScore(exerciseId,correct,total,label=""){
+  const pct=total?Math.round(correct/total*100):0;
+  const scores=loadScores();
+  scores[exerciseId]={correct,total,pct,label};
+  try{localStorage.setItem(SCORE_STORAGE_KEY,JSON.stringify(scores));}catch(e){}
+  refreshScoreDisplays();
+  return pct;
+}
+function lastScoreText(exerciseId){
+  const r=loadScores()[exerciseId];
+  if(!r) return "";
+  return `Letztes Ergebnis: ${r.pct}% (${r.correct}/${r.total})${r.label?` · ${r.label}`:""}`;
+}
+function refreshScoreDisplays(){
+  const scores=loadScores();
+  document.querySelectorAll(".exercise-card[data-open]").forEach(card=>{
+    const id=card.dataset.open, existing=card.querySelector(".last-score");
+    if(existing) existing.remove();
+    if(!scores[id]) return;
+    const d=document.createElement("div");
+    d.className="last-score";
+    d.textContent=lastScoreText(id);
+    card.appendChild(d);
+  });
+  ["ex1","ex2","ex3","ex4","ex5","ex6","ex7","ex8"].forEach(id=>{
+    const section=document.getElementById(id); if(!section) return;
+    const head=section.querySelector(".exercise-head > div"); if(!head) return;
+    let d=head.querySelector(".last-score-inline");
+    if(!scores[id]){ if(d) d.remove(); return; }
+    if(!d){d=document.createElement("div");d.className="last-score-inline";head.appendChild(d);}
+    d.textContent=lastScoreText(id);
+  });
+}
+function showCurrentScore(exerciseId,correct,total,label=""){
+  const pct=saveScore(exerciseId,correct,total,label);
+  const section=document.getElementById(exerciseId);
+  const panel=section?.querySelector(".panel");
+  if(panel){
+    let box=panel.querySelector(".current-score");
+    if(!box){box=document.createElement("div");box.className="current-score";panel.appendChild(box);}
+    box.innerHTML=`<span class="score-pill">${pct}% richtig · ${correct}/${total}</span>`;
+  }
+  return pct;
+}
+function clearCurrentScore(exerciseId){
+  document.querySelector(`#${exerciseId} .current-score`)?.remove();
+}
+
 function showScreen(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
+  refreshScoreDisplays();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 document.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>showScreen(b.dataset.open)));
@@ -102,16 +165,18 @@ function renderAux(){
   document.getElementById("auxAccents").innerHTML=""; accentPalette(document.getElementById("auxAccents"));
 }
 document.getElementById("checkAux").addEventListener("click",()=>{
-  let allGood=true, anyWarn=false;
+  let allGood=true, anyWarn=false, correct=0, total=0;
   document.querySelectorAll("#auxGrid .conj-row").forEach(row=>{
     const input=row.querySelector("input"), note=row.querySelector(".row-note");
     const res=evaluate(input.value,[input.dataset.answer]);
     setInputStatus(input,res); note.className=`row-note ${res.kind}`; note.textContent=feedbackText(res);
+    total++; if(res.kind!=="bad") correct++;
     if(res.kind==="bad") allGood=false; if(res.kind==="warn") anyWarn=true;
   });
+  showCurrentScore("ex1",correct,total);
   if(allGood&&!anyWarn) soundGood(); else if(allGood) soundWarn(); else soundBad();
 });
-document.getElementById("resetAux").addEventListener("click",()=>renderAux());
+document.getElementById("resetAux").addEventListener("click",()=>{clearCurrentScore("ex1");renderAux();});
 
 // GENERIC ONE-BY-ONE ENGINE
 function oneByOne(id, questions, renderer){
@@ -138,7 +203,9 @@ function oneByOne(id, questions, renderer){
     prog.style.width="100%"; body.innerHTML="";
     const box=document.createElement("div"); box.className="result-box question-card";
     const attempted=state.queue.length, falsch=state.falsch.length;
-    box.innerHTML=`<div class="score-pill">${state.right} akzeptiert · ${falsch} falsch${state.warn?` · ${state.warn} Hinweis zu Akzenten${state.warn>1?"s":""}`:""}</div>
+    const percent=attempted?Math.round(state.right/attempted*100):0;
+    if(!state.review) saveScore(id,state.right,attempted);
+    box.innerHTML=`<div class="score-pill">${percent}% richtig · ${state.right}/${attempted} akzeptiert · ${falsch} falsch${state.warn?` · ${state.warn} Hinweis zu Akzenten${state.warn>1?"s":""}`:""}</div>
       <h3 style="margin-top:14px">${falsch===0?"Sehr gut!":"Übung beendet"}</h3>
       <p>${falsch===0?"Du hast diese Übung ohne Fehler abgeschlossen.":"Du kannst jetzt nur die Aufgaben wiederholen, die noch nicht richtig waren."}</p>`;
     const acts=document.createElement("div"); acts.className="actions center-actions";
@@ -163,13 +230,19 @@ function inputQuestionRenderer(body,q,state,api){
   const card=document.createElement("div"); card.className="question-card";
   card.innerHTML=`<div class="question-kicker">Aufgabe ${state.index+1} von ${state.queue.length}</div>
     <div class="question-text">${q.prompt}</div>`;
+  if(q.verb){
+    const target=document.createElement("div");
+    target.className="target-verb";
+    target.innerHTML=`<span class="target-label">Verb</span><strong>${q.verb}</strong>`;
+    card.appendChild(target);
+  }
   const input=document.createElement("input"); input.type="text"; input.autocomplete="off"; input.spellcheck=false;
   input.placeholder="Antwort eingeben";
   card.appendChild(input); activateInput(input);
   accentPalette(card);
   const fb=makeFeedback(); card.appendChild(fb);
   const actions=document.createElement("div"); actions.className="actions";
-  const check=document.createElement("button"); check.className="primary-btn"; check.textContent="Kontrollieren answer";
+  const check=document.createElement("button"); check.className="primary-btn"; check.textContent="Kontrollieren";
   const next=document.createElement("button"); next.className="soft-btn hidden"; next.textContent="Nächste Aufgabe →";
   actions.append(check,next); card.appendChild(actions); body.appendChild(card);
   input.focus();
@@ -195,7 +268,7 @@ oneByOne("ex2",ppQs,inputQuestionRenderer);
 const pronouns=[["je","je / j’"],["tu","tu"],["il","il"],["elle","elle"],["nous","nous"],["vous","vous"],["ils","ils"],["elles","elles"]];
 const avoirForms={je:"ai",tu:"as",il:"a",elle:"a",nous:"avons",vous:"avez",ils:"ont",elles:"ont"};
 const etreForms={je:"suis",tu:"es",il:"est",elle:"est",nous:"sommes",vous:"êtes",ils:"sont",elles:"sont"};
-const conjVerbs=["jouer","décider","passer","fabriquer","regarder","payer","entrer","courir","prendre","faire","dire","voir","avoir","mettre","être","ouvrir","remplir","acheter"];
+const conjVerbs=["jouer","décider","passer","fabriquer","regarder","payer","entrer","aller","rentrer","courir","prendre","faire","dire","voir","avoir","mettre","être","ouvrir","remplir","acheter"];
 let verbIndex=0;
 const vs=document.getElementById("verbSelect");
 conjVerbs.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;vs.appendChild(o)});
@@ -221,41 +294,24 @@ function renderVerb(){
   });
   document.getElementById("verbAccents").innerHTML=""; accentPalette(document.getElementById("verbAccents"));
 }
-vs.addEventListener("change",()=>{verbIndex=conjVerbs.indexOf(vs.value);renderVerb()});
-document.getElementById("prevVerb").addEventListener("click",()=>{verbIndex=(verbIndex-1+conjVerbs.length)%conjVerbs.length;renderVerb()});
-document.getElementById("nextVerb").addEventListener("click",()=>{verbIndex=(verbIndex+1)%conjVerbs.length;renderVerb()});
-document.getElementById("resetVerb").addEventListener("click",renderVerb);
+vs.addEventListener("change",()=>{verbIndex=conjVerbs.indexOf(vs.value);clearCurrentScore("ex3");renderVerb()});
+document.getElementById("prevVerb").addEventListener("click",()=>{verbIndex=(verbIndex-1+conjVerbs.length)%conjVerbs.length;clearCurrentScore("ex3");renderVerb()});
+document.getElementById("nextVerb").addEventListener("click",()=>{verbIndex=(verbIndex+1)%conjVerbs.length;clearCurrentScore("ex3");renderVerb()});
+document.getElementById("resetVerb").addEventListener("click",()=>{clearCurrentScore("ex3");renderVerb();});
 document.getElementById("checkVerb").addEventListener("click",()=>{
-  const v=conjVerbs[verbIndex]; let bad=false,warn=false;
+  const v=conjVerbs[verbIndex]; let bad=false,warn=false,correct=0,total=0;
   document.querySelectorAll("#verbConjGrid .conj-row").forEach(row=>{
     const input=row.querySelector("input"),note=row.querySelector(".row-note");
     const res=evaluate(input.value,conjAnswers(v,input.dataset.pronoun));
     setInputStatus(input,res); note.className=`row-note ${res.kind}`; note.textContent=feedbackText(res);
+    total++; if(res.kind!=="bad") correct++;
     if(res.kind==="bad") bad=true;if(res.kind==="warn") warn=true;
   });
+  showCurrentScore("ex3",correct,total,`Verb: ${v}`);
   if(bad) soundBad(); else if(warn) soundWarn(); else soundGood();
 });
 
-// EXERCISE 4 — book-based sentences
-const ex4Qs=[
- {prompt:`J’ □ de monter ma propre maison hantée. <span class="mini">(décider)</span>`,answers:["ai décidé"]},
- {prompt:`Nous □ la majeure partie de la journée à dresser un plan. <span class="mini">(passer)</span>`,answers:["avons passé"]},
- {prompt:`Pour faire connaître notre projet, on □ du papier. <span class="mini">(prendre)</span>`,answers:["a pris"]},
- {prompt:`On □ des pubs. <span class="mini">(fabriquer)</span>`,answers:["a fabriqué"]},
- {prompt:`À 15 heures, on □ dehors pour voir s’il y avait des clients. <span class="mini">(regarder)</span>`,answers:["a regardé"]},
- {prompt:`Denis Snella □ deux dollars. <span class="mini">(payer)</span>`,answers:["a payé"]},
- {prompt:`Denis Snella □ dans la maison. <span class="mini">(entrer)</span>`,answers:["est entré"]},
- {prompt:`Robert et moi, on □ se mettre en place. <span class="mini">(courir)</span>`,answers:["a couru"]},
- {prompt:`J’ □ mes devoirs. <span class="mini">(faire)</span>`,answers:["ai fait"]},
- {prompt:`Il □ : « L’entrée coûte 2 francs. » <span class="mini">(dire)</span>`,answers:["a dit"]},
- {prompt:`À Saignelégier, le public □ beaucoup de chevaux. <span class="mini">(voir)</span>`,answers:["a vu"]},
- {prompt:`J’ □ une idée. <span class="mini">(avoir)</span>`,answers:["ai eu"]},
- {prompt:`J’ □ le ballon sur la table. <span class="mini">(mettre)</span>`,answers:["ai mis"]},
- {prompt:`Il □ à Paris. <span class="mini">(être)</span>`,answers:["a été"]}
-];
-oneByOne("ex4",ex4Qs,inputQuestionRenderer);
-
-// EXERCISE 5 — alle Verben gleichzeitig zuordnen
+// EXERCISE 4 — alle Verben gleichzeitig zuordnen
 const allMatchVerbs=[
   "jouer","entrer","regarder","aller","faire","prendre","rentrer",
   "dire","voir","mettre","fabriquer","payer","courir","être"
@@ -333,19 +389,22 @@ document.getElementById("checkAllMatch").addEventListener("click",()=>{
     chip.classList.add(ok?"match-good":"match-bad");
     if(!ok) falsch.push(v);
   });
+  const correct=allMatchVerbs.length-falsch.length;
+  const pct=showCurrentScore("ex4",correct,allMatchVerbs.length);
   if(falsch.length===0){
-    fb.textContent="Alles richtig!";
+    fb.textContent=`Alles richtig! ${pct}%`;
     fb.className="feedback show good";
     soundGood();
   }else{
     const corrections=falsch.map(v=>`${v} → ${VERBS[v].aux}`).join(" · ");
-    fb.textContent=`Noch nicht ganz. Richtig wäre: ${corrections}`;
+    fb.textContent=`${pct}% richtig. Noch nicht ganz. Richtig wäre: ${corrections}`;
     fb.className="feedback show bad";
     soundBad();
   }
 });
 
 document.getElementById("resetAllMatch").addEventListener("click",()=>{
+  clearCurrentScore("ex4");
   allMatchAssignments={};
   const fb=document.getElementById("allMatchFeedback");
   fb.className="feedback"; fb.textContent="";
@@ -354,20 +413,74 @@ document.getElementById("resetAllMatch").addEventListener("click",()=>{
 
 renderAllMatching();
 
-// EXERCISE 6 — vom Präsens ins passé composé
+// EXERCISE 5 — Lückentext A (12 ausgewogene Aufgaben)
+const ex5Qs=[
+ {prompt:`J’ □ de monter ma propre maison hantée.`,verb:"décider",answers:["ai décidé"]},
+ {prompt:`Tu □ tes devoirs.`,verb:"faire",answers:["as fait"]},
+ {prompt:`Il □ : « L’entrée coûte 2 francs. »`,verb:"dire",answers:["a dit"]},
+ {prompt:`Elle □ au marché.`,verb:"aller",answers:["est allée"]},
+ {prompt:`Nous □ la majeure partie de la journée à dresser un plan.`,verb:"passer",answers:["avons passé"]},
+ {prompt:`Vous □ une bonne idée.`,verb:"avoir",answers:["avez eu"]},
+ {prompt:`Ils □ à Paris.`,verb:"être",answers:["ont été"]},
+ {prompt:`Elles □ les verres.`,verb:"remplir",answers:["ont rempli"]},
+ {prompt:`Pour faire connaître notre projet, on □ du papier.`,verb:"prendre",answers:["a pris"]},
+ {prompt:`Denis Snella □ deux dollars.`,verb:"payer",answers:["a payé"]},
+ {prompt:`Nous □ du pain.`,verb:"acheter",answers:["avons acheté"]},
+ {prompt:`Vous □ le spectacle.`,verb:"regarder",answers:["avez regardé"]}
+];
+oneByOne("ex5",ex5Qs,inputQuestionRenderer);
+
+// EXERCISE 6 — Lückentext B (12 weitere ausgewogene Aufgaben)
 const ex6Qs=[
- {prompt:`Setze den Satz ins passé composé:<br><strong>J’ai une idée.</strong>`,answers:["j’ai eu une idée.","j'ai eu une idée.","j’ai eu une idée","j'ai eu une idée"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Il prend du papier.</strong>`,answers:["il a pris du papier.","il a pris du papier"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>On fabrique des pubs.</strong>`,answers:["on a fabriqué des pubs.","on a fabriqué des pubs"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>On regarde dehors.</strong>`,answers:["on a regardé dehors.","on a regardé dehors"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Denis paie deux dollars.</strong>`,answers:["denis a payé deux dollars.","denis a payé deux dollars"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Denis entre dans la maison.</strong>`,answers:["denis est entré dans la maison.","denis est entré dans la maison"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Il dit bonjour.</strong>`,answers:["il a dit bonjour.","il a dit bonjour"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Le public voit beaucoup de chevaux.</strong>`,answers:["le public a vu beaucoup de chevaux.","le public a vu beaucoup de chevaux"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Je fais mes devoirs.</strong>`,answers:["j’ai fait mes devoirs.","j'ai fait mes devoirs.","j’ai fait mes devoirs","j'ai fait mes devoirs"]},
- {prompt:`Setze den Satz ins passé composé:<br><strong>Je mets le ballon sur la table.</strong>`,answers:["j’ai mis le ballon sur la table.","j'ai mis le ballon sur la table.","j’ai mis le ballon sur la table","j'ai mis le ballon sur la table"]}
+ {prompt:`On □ des pubs.`,verb:"fabriquer",answers:["a fabriqué"]},
+ {prompt:`Denis Snella □ dans la maison hantée.`,verb:"entrer",answers:["est entré"]},
+ {prompt:`Robert et moi, on □ se mettre en place.`,verb:"courir",answers:["a couru"]},
+ {prompt:`À Saignelégier, le public □ beaucoup de chevaux.`,verb:"voir",answers:["a vu"]},
+ {prompt:`Elle □ le ballon sur la table.`,verb:"mettre",answers:["a mis"]},
+ {prompt:`Nous □ la porte.`,verb:"ouvrir",answers:["avons ouvert"]},
+ {prompt:`Tu □ au foot avec tes amis.`,verb:"jouer",answers:["as joué"]},
+ {prompt:`Ils □ le bus.`,verb:"prendre",answers:["ont pris"]},
+ {prompt:`Elles □ à la maison.`,verb:"rentrer",answers:["sont rentrées"]},
+ {prompt:`Il □ de partir plus tôt.`,verb:"décider",answers:["a décidé"]},
+ {prompt:`Vous □ les billets.`,verb:"payer",answers:["avez payé"]},
+ {prompt:`Denis Snella □ derrière la porte avant d’entrer.`,verb:"regarder",answers:["a regardé"]}
 ];
 oneByOne("ex6",ex6Qs,inputQuestionRenderer);
 
+// EXERCISE 7 — Präsens → passé composé A
+const ex7Qs=[
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Je fais mes devoirs.</strong>`,verb:"faire",answers:["j’ai fait mes devoirs.","j’ai fait mes devoirs"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Tu joues au foot.</strong>`,verb:"jouer",answers:["tu as joué au foot.","tu as joué au foot"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Il prend du papier.</strong>`,verb:"prendre",answers:["il a pris du papier.","il a pris du papier"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Elle va au marché.</strong>`,verb:"aller",answers:["elle est allée au marché.","elle est allée au marché"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Nous fabriquons des pubs.</strong>`,verb:"fabriquer",answers:["nous avons fabriqué des pubs.","nous avons fabriqué des pubs"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Vous regardez dehors.</strong>`,verb:"regarder",answers:["vous avez regardé dehors.","vous avez regardé dehors"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Ils ouvrent la porte.</strong>`,verb:"ouvrir",answers:["ils ont ouvert la porte.","ils ont ouvert la porte"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Elles remplissent les verres.</strong>`,verb:"remplir",answers:["elles ont rempli les verres.","elles ont rempli les verres"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Denis Snella paie deux dollars.</strong>`,verb:"payer",answers:["denis snella a payé deux dollars.","denis snella a payé deux dollars"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>On ouvre la fenêtre.</strong>`,verb:"ouvrir",answers:["on a ouvert la fenêtre.","on a ouvert la fenêtre"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Tu dis bonjour.</strong>`,verb:"dire",answers:["tu as dit bonjour.","tu as dit bonjour"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Nous avons une idée.</strong>`,verb:"avoir",answers:["nous avons eu une idée.","nous avons eu une idée"]}
+];
+oneByOne("ex7",ex7Qs,inputQuestionRenderer);
+
+// EXERCISE 8 — Präsens → passé composé B
+const ex8Qs=[
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Denis Snella entre dans la maison.</strong>`,verb:"entrer",answers:["denis snella est entré dans la maison.","denis snella est entré dans la maison"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Elle voit les chevaux.</strong>`,verb:"voir",answers:["elle a vu les chevaux.","elle a vu les chevaux"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Vous mettez le ballon sur la table.</strong>`,verb:"mettre",answers:["vous avez mis le ballon sur la table.","vous avez mis le ballon sur la table"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Ils courent dans le jardin.</strong>`,verb:"courir",answers:["ils ont couru dans le jardin.","ils ont couru dans le jardin"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Elles rentrent à la maison.</strong>`,verb:"rentrer",answers:["elles sont rentrées à la maison.","elles sont rentrées à la maison"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Nous achetons du pain.</strong>`,verb:"acheter",answers:["nous avons acheté du pain.","nous avons acheté du pain"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Vous passez la journée à travailler.</strong>`,verb:"passer",answers:["vous avez passé la journée à travailler.","vous avez passé la journée à travailler"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Il est à Paris.</strong>`,verb:"être",answers:["il a été à paris.","il a été à paris"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Tu décides de partir.</strong>`,verb:"décider",answers:["tu as décidé de partir.","tu as décidé de partir"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Ils paient les billets.</strong>`,verb:"payer",answers:["ils ont payé les billets.","ils ont payé les billets"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Elle entre dans la maison.</strong>`,verb:"entrer",answers:["elle est entrée dans la maison.","elle est entrée dans la maison"]},
+ {prompt:`Setze den Satz ins passé composé:<br><strong>Denis Snella regarde derrière la porte.</strong>`,verb:"regarder",answers:["denis snella a regardé derrière la porte.","denis snella a regardé derrière la porte"]}
+];
+oneByOne("ex8",ex8Qs,inputQuestionRenderer);
+
 renderAux();
 renderVerb();
+refreshScoreDisplays();
